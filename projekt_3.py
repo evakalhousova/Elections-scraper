@@ -74,9 +74,15 @@ def get_parties(url, town_code):
 def get_votes(parsed_html):
     votes = []
     for item in parsed_html.find_all('td', {'headers': 't1sa2 t1sb3'}):
-        votes.append(item.text.replace(u'\xa0', u''))
+        if item.text == '-':
+            continue
+        else:
+            votes.append(item.text.replace(u'\xa0', u''))
     for item in parsed_html.find_all('td', {'headers': 't2sa2 t2sb3'}):
-        votes.append(item.text.replace(u'\xa0', u''))
+        if item.text == '-':
+            continue
+        else:
+            votes.append(item.text.replace(u'\xa0', u''))
     return votes
 
 town_codes = get_town_codes(url)
