@@ -10,20 +10,22 @@ from bs4 import BeautifulSoup
 import sys
 import csv
 
-if len(sys.argv) != 3:
-    print('To run the script, you need to enter two arguments (url and csv file name).')
-    sys.exit(1)
-elif 'https://www.volby.cz/pls/ps2017nss/ps32?xjazyk=CZ&xkraj=' not in sys.argv[1]:
-    print('To run the script, you need to enter the url of the web with election results for a region as the first argument.')
-    sys.exit(1)
-elif not sys.argv[2].endswith('.csv'):
-    print("To run the script, you need to enter the csv file name including the '.csv' file extension as the second argument.")
-    sys.exit(1)
+def check_arguments():
+    if len(sys.argv) != 3:
+        print('To run the script, you need to enter two arguments (url and csv file name).')
+        sys.exit(1)
+    elif 'https://www.volby.cz/pls/ps2017nss/ps32?xjazyk=CZ&xkraj=' not in sys.argv[1]:
+        print('To run the script, you need to enter the url of the web with election results for a region as the first argument.')
+        sys.exit(1)
+    elif not sys.argv[2].endswith('.csv'):
+        print("To run the script, you need to enter the csv file name including the '.csv' file extension as the second argument.")
+        sys.exit(1)
 
-url = sys.argv[1]
-csv_name = sys.argv[2]
-
-print(f'Downloading data from url: {url}')
+def load_arguments():
+    check_arguments()
+    url = sys.argv[1]
+    csv_name = sys.argv[2]
+    return url, csv_name
 
 def get_parsed_html_region(url):
     response = get(url)
@@ -40,9 +42,9 @@ def get_town_codes(url):
 
 def format_url_town(url, town_code):
     split_url = url.split('xkraj=')[1].split('&xnumnuts=')
-    number_1 = split_url[0]
-    number_2 = split_url[1]
-    formatted_url = f'https://www.volby.cz/pls/ps2017nss/ps311?xjazyk=CZ&xkraj={number_1}&xobec={town_code}&xvyber={number_2}'
+    region_id = split_url[0]
+    choice_id = split_url[1]
+    formatted_url = f'https://www.volby.cz/pls/ps2017nss/ps311?xjazyk=CZ&xkraj={region_id}&xobec={town_code}&xvyber={choice_id}'
     return formatted_url
 
 def get_parsed_html_town(formatted_url):
@@ -85,33 +87,45 @@ def get_votes(parsed_html):
             votes.append(item.text.replace(u'\xa0', u''))
     return votes
 
-town_codes = get_town_codes(url)
+def create_header(town_codes, url):
+    header = ['town code', 'town name', 'registered','envelopes', 'valid']
+    parties = get_parties(url, town_codes[0])
+    for item in parties:
+        header.append(item)
+    return header
 
-header = ['town code', 'town name', 'registered','envelopes', 'valid']
-parties = get_parties(url, town_codes[0])
-for item in parties:
-    header.append(item)
+def create_towns_data(town_codes, url):
+    towns_data = []
+    for town_code in town_codes:
+        formatted_url = format_url_town(url, town_code)
+        parsed_html = get_parsed_html_town(formatted_url)
+        town_name = get_town_name(parsed_html)
+        general_results = get_general_results(parsed_html)
+        votes = get_votes(parsed_html)
+        town_data = [town_code, town_name]
+        for item in general_results:
+            town_data.append(item)
+        for item in votes:
+            town_data.append(item)
+        towns_data.append(town_data)
+    return towns_data
 
-with open(csv_name, mode="w", encoding='utf-8', newline="") as new_csv:
-    writer = csv.writer(new_csv)
-    writer.writerow(header)
-
-for town_code in town_codes:
-    formatted_url = format_url_town(url, town_code)
-    parsed_html = get_parsed_html_town(formatted_url)
-    town_name = get_town_name(parsed_html)
-    general_results = get_general_results(parsed_html)
-    votes = get_votes(parsed_html)
-    town_data = [town_code, town_name]
-    for item in general_results:
-        town_data.append(item)
-    for item in votes:
-        town_data.append(item)
-    with open(csv_name, mode="a", encoding='utf-8', newline="") as new_csv:
+def write_into_csv(csv_name, header, towns_data):
+    with open(csv_name, mode="w", encoding='utf-8', newline="") as new_csv:
         writer = csv.writer(new_csv)
-        writer.writerow(town_data)
+        writer.writerow(header)
+        writer.writerows(towns_data)
 
-print(
+def main():
+    url, csv_name = load_arguments()
+    print(f'Downloading data from url: {url}')
+    town_codes = get_town_codes(url)
+    header = create_header(town_codes, url)
+    towns_data = create_towns_data(town_codes, url)
+    write_into_csv(csv_name, header, towns_data)
+    print(
         f'Saving data to file: {csv_name}',
         'Ending projekt_3.py', sep="\n"
     )
+
+main()
